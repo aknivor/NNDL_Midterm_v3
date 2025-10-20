@@ -1,58 +1,43 @@
 // app.js
-let gamesData = [];
-let filteredData = [];
+// Global variables
+let dataLoader = new VideoGamesDataLoader();
+let predictor = new GRUPredictor();
+let currentTab = 'eda';
 
-// Sample data from the provided CSV
-const sampleData = `Rank,Name,Platform,Year,Genre,Publisher,NA_Sales,EU_Sales,JP_Sales,Other_Sales,Global_Sales
-1,Wii Sports,Wii,2006,Sports,Nintendo,41.49,29.02,3.77,8.46,82.74
-2,Super Mario Bros.,NES,1985,Platform,Nintendo,29.08,3.58,6.81,0.77,40.24
-3,Mario Kart Wii,Wii,2008,Racing,Nintendo,15.85,12.88,3.79,3.31,35.82
-4,Wii Sports Resort,Wii,2009,Sports,Nintendo,15.75,11.01,3.28,2.96,33
-5,Pokemon Red/Pokemon Blue,GB,1996,Role-Playing,Nintendo,11.27,8.89,10.22,1,31.37
-6,Tetris,GB,1989,Puzzle,Nintendo,23.2,2.26,4.22,0.58,30.26
-7,New Super Mario Bros.,DS,2006,Platform,Nintendo,11.38,9.23,6.5,2.9,30.01
-8,Wii Play,Wii,2006,Misc,Nintendo,14.03,9.2,2.93,2.85,29.02
-9,New Super Mario Bros. Wii,Wii,2009,Platform,Nintendo,14.59,7.06,4.7,2.26,28.62
-10,Duck Hunt,NES,1984,Shooter,Nintendo,26.93,0.63,0.28,0.47,28.31`;
-
-function parseCSV(csvText) {
-    const lines = csvText.split('\n').filter(line => line.trim() !== '');
-    const headers = lines[0].split(',').map(h => h.trim());
+// Tab navigation
+function showTab(tabName) {
+    currentTab = tabName;
     
-    return lines.slice(1).map(line => {
-        const values = line.split(',').map(v => v.trim());
-        const game = {};
-        headers.forEach((header, index) => {
-            let value = values[index];
-            // Handle numeric columns
-            if (['Rank', 'Year', 'NA_Sales', 'EU_Sales', 'JP_Sales', 'Other_Sales', 'Global_Sales'].includes(header)) {
-                value = parseFloat(value) || 0;
-            }
-            game[header] = value;
-        });
-        return game;
+    // Update tab buttons
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
     });
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+    document.getElementById(`${tabName}-tab`).classList.add('active');
 }
 
+// EDA Functions
 function loadSampleData() {
     try {
-        gamesData = parseCSV(sampleData);
-        filteredData = [...gamesData];
-        initializeApp();
-        document.getElementById('dataSection').scrollIntoView({ behavior: 'smooth' });
+        const gamesData = dataLoader.loadSampleData();
+        initializeEDA(gamesData);
+        showSuccess('Sample data loaded successfully!');
     } catch (error) {
         showError('Failed to load sample data: ' + error.message);
     }
 }
 
-function initializeApp() {
-    displayDataInfo();
-    populateFilters();
+function initializeEDA(gamesData) {
+    displayDataInfo(gamesData);
+    populateFilters(gamesData);
     applyFilters();
-    createAllCharts();
 }
 
-function displayDataInfo() {
+function displayDataInfo(gamesData) {
     const dataInfo = document.getElementById('dataInfo');
     const totalSales = gamesData.reduce((sum, game) => sum + game.Global_Sales, 0);
     const yearRange = gamesData.reduce((acc, game) => {
@@ -81,7 +66,7 @@ function displayDataInfo() {
     `;
 }
 
-function populateFilters() {
+function populateFilters(gamesData) {
     const platforms = [...new Set(gamesData.map(g => g.Platform))].sort();
     const genres = [...new Set(gamesData.map(g => g.Genre))].sort();
     const publishers = [...new Set(gamesData.map(g => g.Publisher))].sort();
@@ -103,32 +88,25 @@ function applyFilters() {
     const platform = document.getElementById('platformFilter').value;
     const genre = document.getElementById('genreFilter').value;
     const publisher = document.getElementById('publisherFilter').value;
-    const yearMin = parseInt(document.getElementById('yearMin').value) || 0;
-    const yearMax = parseInt(document.getElementById('yearMax').value) || 9999;
-
-    filteredData = gamesData.filter(game => {
+    
+    const filteredData = dataLoader.gamesData.filter(game => {
         return (!platform || game.Platform === platform) &&
                (!genre || game.Genre === genre) &&
-               (!publisher || game.Publisher === publisher) &&
-               (game.Year >= yearMin && game.Year <= yearMax);
+               (!publisher || game.Publisher === publisher);
     });
 
-    updateFilterStats();
-    createAllCharts();
+    updateFilterStats(filteredData);
+    createEDAVisualizations(filteredData);
 }
 
 function resetFilters() {
-    filteredData = [...gamesData];
     document.getElementById('platformFilter').value = '';
     document.getElementById('genreFilter').value = '';
     document.getElementById('publisherFilter').value = '';
-    document.getElementById('yearMin').value = '';
-    document.getElementById('yearMax').value = '';
-    updateFilterStats();
-    createAllCharts();
+    applyFilters();
 }
 
-function updateFilterStats() {
+function updateFilterStats(filteredData) {
     const stats = document.getElementById('filterStats');
     const totalSales = filteredData.reduce((sum, game) => sum + game.Global_Sales, 0);
     const avgSales = filteredData.length > 0 ? totalSales / filteredData.length : 0;
@@ -149,17 +127,17 @@ function updateFilterStats() {
     `;
 }
 
-function createAllCharts() {
-    createSalesTrendChart();
-    createPlatformChart();
-    createGenreChart();
-    createPublisherChart();
-    createRegionalChart();
-    createYearlyBreakdownChart();
-    createTopGamesTable();
+function createEDAVisualizations(filteredData) {
+    createSalesTrendChart(filteredData);
+    createPlatformChart(filteredData);
+    createGenreChart(filteredData);
+    createPublisherChart(filteredData);
+    createRegionalChart(filteredData);
+    createTopGamesTable(filteredData);
 }
 
-function createSalesTrendChart() {
+// EDA Visualization functions (similar to previous implementation)
+function createSalesTrendChart(filteredData) {
     const salesByYear = filteredData.reduce((acc, game) => {
         const year = game.Year;
         if (!acc[year]) acc[year] = 0;
@@ -183,14 +161,13 @@ function createSalesTrendChart() {
     const layout = {
         title: 'Global Sales Trend by Year',
         xaxis: { title: 'Year', tickangle: -45 },
-        yaxis: { title: 'Sales (Millions)' },
-        hovermode: 'closest'
+        yaxis: { title: 'Sales (Millions)' }
     };
 
     Plotly.newPlot('salesTrendChart', [trace], layout, { responsive: true });
 }
 
-function createPlatformChart() {
+function createPlatformChart(filteredData) {
     const salesByPlatform = filteredData.reduce((acc, game) => {
         const platform = game.Platform;
         if (!acc[platform]) acc[platform] = 0;
@@ -207,9 +184,7 @@ function createPlatformChart() {
         x: platforms,
         y: sales,
         type: 'bar',
-        marker: {
-            color: platforms.map((_, i) => `hsl(${i * 30}, 70%, 50%)`)
-        }
+        marker: { color: platforms.map((_, i) => `hsl(${i * 30}, 70%, 50%)`) }
     };
 
     const layout = {
@@ -221,7 +196,7 @@ function createPlatformChart() {
     Plotly.newPlot('platformChart', [trace], layout, { responsive: true });
 }
 
-function createGenreChart() {
+function createGenreChart(filteredData) {
     const salesByGenre = filteredData.reduce((acc, game) => {
         const genre = game.Genre;
         if (!acc[genre]) acc[genre] = 0;
@@ -236,19 +211,14 @@ function createGenreChart() {
         labels: genres,
         values: sales,
         type: 'pie',
-        hole: 0.4,
-        textinfo: 'label+percent'
+        hole: 0.4
     };
 
-    const layout = {
-        title: 'Sales Distribution by Genre',
-        showlegend: true
-    };
-
+    const layout = { title: 'Sales Distribution by Genre' };
     Plotly.newPlot('genreChart', [trace], layout, { responsive: true });
 }
 
-function createPublisherChart() {
+function createPublisherChart(filteredData) {
     const salesByPublisher = filteredData.reduce((acc, game) => {
         const publisher = game.Publisher;
         if (!acc[publisher]) acc[publisher] = 0;
@@ -257,7 +227,7 @@ function createPublisherChart() {
     }, {});
 
     const publishers = Object.keys(salesByPublisher)
-        .sort((a, b) => salesByPlatform[b] - salesByPlatform[a])
+        .sort((a, b) => salesByPublisher[b] - salesByPublisher[a])
         .slice(0, 8);
     const sales = publishers.map(publisher => salesByPublisher[publisher]);
 
@@ -266,22 +236,19 @@ function createPublisherChart() {
         y: publishers,
         type: 'bar',
         orientation: 'h',
-        marker: {
-            color: 'rgba(55,128,191,0.6)'
-        }
+        marker: { color: 'rgba(55,128,191,0.6)' }
     };
 
     const layout = {
         title: 'Top Publishers by Sales',
         xaxis: { title: 'Sales (Millions)' },
-        yaxis: { title: 'Publisher' },
         margin: { l: 150 }
     };
 
     Plotly.newPlot('publisherChart', [trace], layout, { responsive: true });
 }
 
-function createRegionalChart() {
+function createRegionalChart(filteredData) {
     const totalNA = filteredData.reduce((sum, game) => sum + game.NA_Sales, 0);
     const totalEU = filteredData.reduce((sum, game) => sum + game.EU_Sales, 0);
     const totalJP = filteredData.reduce((sum, game) => sum + game.JP_Sales, 0);
@@ -291,56 +258,14 @@ function createRegionalChart() {
         values: [totalNA, totalEU, totalJP, totalOther],
         labels: ['North America', 'Europe', 'Japan', 'Other Regions'],
         type: 'pie',
-        marker: {
-            colors: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728']
-        }
+        marker: { colors: ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728'] }
     };
 
-    const layout = {
-        title: 'Regional Sales Distribution'
-    };
-
+    const layout = { title: 'Regional Sales Distribution' };
     Plotly.newPlot('regionalChart', [trace], layout, { responsive: true });
 }
 
-function createYearlyBreakdownChart() {
-    const yearlyData = filteredData.reduce((acc, game) => {
-        const year = game.Year;
-        if (!acc[year]) {
-            acc[year] = { NA: 0, EU: 0, JP: 0, Other: 0 };
-        }
-        acc[year].NA += game.NA_Sales;
-        acc[year].EU += game.EU_Sales;
-        acc[year].JP += game.JP_Sales;
-        acc[year].Other += game.Other_Sales;
-        return acc;
-    }, {});
-
-    const years = Object.keys(yearlyData).sort();
-    const regions = ['NA', 'EU', 'JP', 'Other'];
-    const regionNames = ['North America', 'Europe', 'Japan', 'Other'];
-
-    const traces = regions.map((region, i) => ({
-        x: years,
-        y: years.map(year => yearlyData[year][region]),
-        name: regionNames[i],
-        type: 'bar',
-        marker: {
-            color: [`rgba(31, 119, 180, 0.8)`, `rgba(255, 127, 14, 0.8)`, `rgba(44, 160, 44, 0.8)`, `rgba(214, 39, 40, 0.8)`][i]
-        }
-    }));
-
-    const layout = {
-        title: 'Yearly Sales by Region',
-        xaxis: { title: 'Year', tickangle: -45 },
-        yaxis: { title: 'Sales (Millions)' },
-        barmode: 'stack'
-    };
-
-    Plotly.newPlot('yearlyBreakdownChart', traces, layout, { responsive: true });
-}
-
-function createTopGamesTable() {
+function createTopGamesTable(filteredData) {
     const topGames = [...filteredData]
         .sort((a, b) => b.Global_Sales - a.Global_Sales)
         .slice(0, 10);
@@ -353,7 +278,6 @@ function createTopGamesTable() {
                     <th>Game</th>
                     <th>Platform</th>
                     <th>Year</th>
-                    <th>Genre</th>
                     <th>Global Sales (M)</th>
                 </tr>
             </thead>
@@ -367,27 +291,264 @@ function createTopGamesTable() {
                 <td><strong>${game.Name}</strong></td>
                 <td>${game.Platform}</td>
                 <td>${game.Year}</td>
-                <td>${game.Genre}</td>
                 <td style="font-weight: bold; color: #28a745;">${game.Global_Sales}</td>
             </tr>
         `;
     });
 
     tableHTML += `</tbody></table>`;
+    document.getElementById('topGames').innerHTML = `<h3>Top 10 Games by Global Sales</h3>${tableHTML}`;
+}
 
-    document.getElementById('topGames').innerHTML = tableHTML;
+// Prediction Functions
+async function initializePrediction() {
+    try {
+        showLoading('Initializing prediction model...');
+        
+        // Prepare time series data
+        const processedData = dataLoader.prepareTimeSeriesData();
+        
+        // Build model
+        predictor.buildModel(processedData.inputShape, processedData.outputShape);
+        
+        // Enable training button
+        document.getElementById('trainBtn').disabled = false;
+        
+        // Show model info
+        document.getElementById('modelInfo').innerHTML = `
+            <div class="success">
+                <strong>Model Initialized Successfully!</strong><br>
+                Input Shape: ${processedData.inputShape.join(' x ')}<br>
+                Output Shape: ${processedData.outputShape} (${processedData.platforms.length} platforms × ${processedData.predictionHorizon} time steps)<br>
+                Platforms: ${processedData.platforms.join(', ')}
+            </div>
+        `;
+        
+        hideLoading();
+        showSuccess('Prediction model initialized and ready for training!');
+        
+    } catch (error) {
+        hideLoading();
+        showError('Failed to initialize prediction model: ' + error.message);
+    }
+}
+
+async function trainModel() {
+    try {
+        if (!predictor.model) {
+            throw new Error('Model not initialized. Click "Initialize Prediction Model" first.');
+        }
+
+        showLoading('Training model...');
+        document.getElementById('trainBtn').disabled = true;
+        
+        const processedData = dataLoader.processedData;
+        await predictor.train(
+            processedData.X_train, 
+            processedData.y_train, 
+            processedData.X_test, 
+            processedData.y_test,
+            30,  // epochs
+            4    // batch size
+        );
+        
+        document.getElementById('evaluateBtn').disabled = false;
+        hideLoading();
+        showSuccess('Model training completed! Click "Evaluate Model" to see results.');
+        
+    } catch (error) {
+        hideLoading();
+        document.getElementById('trainBtn').disabled = false;
+        showError('Training failed: ' + error.message);
+    }
+}
+
+async function evaluateModel() {
+    try {
+        if (!predictor.isTrained) {
+            throw new Error('Model not trained. Train the model first.');
+        }
+
+        showLoading('Evaluating model...');
+        
+        const processedData = dataLoader.processedData;
+        
+        // Get predictions
+        const predictions = await predictor.predict(processedData.X_test);
+        const yTrue = processedData.y_test;
+        
+        // Calculate platform accuracies
+        const platformAccuracies = await predictor.calculatePlatformAccuracy(
+            yTrue, predictions, 
+            processedData.platforms, 
+            processedData.predictionHorizon
+        );
+        
+        // Display results
+        displayPredictionResults(platformAccuracies, processedData.platforms);
+        createAccuracyChart(platformAccuracies);
+        createPredictionTimeline(yTrue, predictions, processedData.platforms, processedData.predictionHorizon);
+        
+        hideLoading();
+        showSuccess('Model evaluation completed!');
+        
+    } catch (error) {
+        hideLoading();
+        showError('Evaluation failed: ' + error.message);
+    }
+}
+
+function displayPredictionResults(platformAccuracies, platforms) {
+    const resultsDiv = document.getElementById('predictionResults');
+    
+    // Sort platforms by accuracy
+    const sortedPlatforms = Object.entries(platformAccuracies)
+        .sort(([,a], [,b]) => b - a);
+    
+    let resultsHTML = `
+        <div class="success">
+            <h3>Prediction Results</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Platform</th>
+                        <th>Accuracy</th>
+                        <th>Performance</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    sortedPlatforms.forEach(([platform, accuracy]) => {
+        const percentage = (accuracy * 100).toFixed(1);
+        const performance = accuracy > 0.6 ? '🟢 Good' : accuracy > 0.5 ? '🟡 Fair' : '🔴 Poor';
+        const colorClass = accuracy > 0.6 ? 'prediction-correct' : accuracy > 0.5 ? '' : 'prediction-wrong';
+        
+        resultsHTML += `
+            <tr>
+                <td><strong>${platform}</strong></td>
+                <td class="${colorClass}">${percentage}%</td>
+                <td>${performance}</td>
+            </tr>
+        `;
+    });
+    
+    resultsHTML += `</tbody></table></div>`;
+    resultsDiv.innerHTML = resultsHTML;
+}
+
+function createAccuracyChart(platformAccuracies) {
+    const sortedEntries = Object.entries(platformAccuracies)
+        .sort(([,a], [,b]) => b - a);
+    
+    const platforms = sortedEntries.map(([platform]) => platform);
+    const accuracies = sortedEntries.map(([,accuracy]) => accuracy * 100);
+    
+    const trace = {
+        x: accuracies,
+        y: platforms,
+        type: 'bar',
+        orientation: 'h',
+        marker: {
+            color: accuracies.map(acc => 
+                acc > 60 ? '#28a745' : acc > 50 ? '#ffc107' : '#dc3545'
+            )
+        }
+    };
+    
+    const layout = {
+        title: 'Prediction Accuracy by Platform',
+        xaxis: { title: 'Accuracy (%)', range: [0, 100] },
+        yaxis: { title: 'Platform' },
+        margin: { l: 150 }
+    };
+    
+    Plotly.newPlot('accuracyChart', [trace], layout, { responsive: true });
+}
+
+async function createPredictionTimeline(yTrue, yPred, platforms, predictionHorizon) {
+    const trueData = await yTrue.array();
+    const predData = await yPred.array();
+    
+    // For demonstration, show first 20 predictions
+    const sampleSize = Math.min(20, trueData.length);
+    const timePoints = Array.from({length: sampleSize}, (_, i) => i + 1);
+    
+    const traces = platforms.map((platform, platformIndex) => {
+        const correctPredictions = [];
+        
+        for (let i = 0; i < sampleSize; i++) {
+            let correctCount = 0;
+            for (let offset = 0; offset < predictionHorizon; offset++) {
+                const outputIndex = platformIndex * predictionHorizon + offset;
+                const trueVal = trueData[i][outputIndex];
+                const predVal = predData[i][outputIndex] > 0.5 ? 1 : 0;
+                
+                if (trueVal === predVal) {
+                    correctCount++;
+                }
+            }
+            correctPredictions.push((correctCount / predictionHorizon) * 100);
+        }
+        
+        return {
+            x: timePoints,
+            y: correctPredictions,
+            type: 'scatter',
+            mode: 'lines+markers',
+            name: platform
+        };
+    });
+    
+    const layout = {
+        title: 'Prediction Accuracy Timeline',
+        xaxis: { title: 'Test Sample' },
+        yaxis: { title: 'Accuracy (%)', range: [0, 100] }
+    };
+    
+    Plotly.newPlot('predictionTimelineChart', traces, layout, { responsive: true });
+}
+
+// Utility Functions
+function showLoading(message = 'Loading...') {
+    const loadingDiv = document.createElement('div');
+    loadingDiv.className = 'loading';
+    loadingDiv.id = 'loadingIndicator';
+    loadingDiv.innerHTML = `<p>⏳ ${message}</p>`;
+    document.body.appendChild(loadingDiv);
+}
+
+function hideLoading() {
+    const loadingDiv = document.getElementById('loadingIndicator');
+    if (loadingDiv) {
+        loadingDiv.remove();
+    }
 }
 
 function showError(message) {
     const errorDiv = document.createElement('div');
     errorDiv.className = 'error';
-    errorDiv.textContent = message;
-    document.body.prepend(errorDiv);
+    errorDiv.innerHTML = `❌ ${message}`;
+    document.body.appendChild(errorDiv);
     setTimeout(() => errorDiv.remove(), 5000);
 }
 
-// Initialize the app when the page loads
+function showSuccess(message) {
+    const successDiv = document.createElement('div');
+    successDiv.className = 'success';
+    successDiv.innerHTML = `✅ ${message}`;
+    document.body.appendChild(successDiv);
+    setTimeout(() => successDiv.remove(), 5000);
+}
+
+// Initialize app when page loads
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Video Games Sales EDA Tool Loaded');
+    console.log('Video Games Sales Analysis & Prediction Tool Loaded');
     console.log('Click "Load Sample Data" to start exploring!');
+});
+
+// Clean up when page unloads
+window.addEventListener('beforeunload', function() {
+    dataLoader.dispose();
+    predictor.dispose();
 });
